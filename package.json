@@ -1,0 +1,19 @@
+{
+  "name": "aisd-esa-dxfconvert",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Convert CAFM DXF floor plans to AISD-ESA SVG and upload to Supabase",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "dxf": "^5.3.1"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

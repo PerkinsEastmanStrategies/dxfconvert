@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AISD-ESA DXF → SVG Converter</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div>
+          <p class="eyebrow">AISD Environmental &amp; Spatial Assessment</p>
+          <h1>DXF → SVG Converter</h1>
+          <p class="subtitle">
+            Strip CAFM floor plans down to <strong>CAFM_ID</strong>, <strong>CAFM_SPACE</strong>,
+            and exterior <strong>walls</strong>, then upload to the same Supabase bucket used by the survey app.
+          </p>
+        </div>
+      </header>
+
+      <section class="panel">
+        <h2>1. Source file</h2>
+        <div class="row">
+          <label class="file-picker">
+            <span>Choose DXF</span>
+            <input id="dxf-input" type="file" accept=".dxf,text/plain" />
+          </label>
+          <button id="convert-btn" type="button" class="primary">Convert</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>2. Output name</h2>
+        <p class="hint">
+          Use the same naming convention as the floor plan manifest, e.g.
+          <code>ALLISON ES.svg</code>. A mobile copy is saved automatically as
+          <code>ALLISON ES.mobile.svg</code>.
+        </p>
+        <input id="file-name" type="text" placeholder="SCHOOL NAME ES.svg" />
+      </section>
+
+      <section class="panel grid-2">
+        <div>
+          <h2>Layer summary</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>DXF layer</th>
+                  <th>Entities</th>
+                  <th>Export group</th>
+                </tr>
+              </thead>
+              <tbody id="layer-table">
+                <tr><td colspan="3">Convert a DXF to see layer mapping.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h2>Supabase upload</h2>
+          <p class="hint">
+            Uses the <code>floor-plans</code> bucket from AISD-ESA. Paste your service role key once;
+            it stays in local browser storage only.
+          </p>
+          <label>
+            Supabase URL
+            <input id="supabase-url" type="url" autocomplete="off" />
+          </label>
+          <label>
+            Bucket
+            <input id="supabase-bucket" type="text" autocomplete="off" />
+          </label>
+          <label>
+            Service role key
+            <input id="supabase-key" type="password" autocomplete="off" placeholder="eyJ…" />
+          </label>
+          <button id="save-config-btn" type="button">Save settings</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="actions">
+          <button id="download-btn" type="button">Download both SVGs</button>
+          <button id="save-btn" type="button" class="primary">Save to Supabase</button>
+        </div>
+        <p id="status" class="status" data-type="info"></p>
+      </section>
+
+      <section class="panel previews">
+        <div class="preview-card">
+          <h3>Desktop SVG</h3>
+          <p class="meta" id="meta-desktop"></p>
+          <p class="hint">Keeps doors and bathroom/plumbing fixtures in addition to core layers.</p>
+          <div id="preview-desktop" class="preview-frame"></div>
+        </div>
+        <div class="preview-card">
+          <h3>Mobile SVG</h3>
+          <p class="meta" id="meta-mobile"></p>
+          <p class="hint">Lean Version</p>
+          <div id="preview-mobile" class="preview-frame"></div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
