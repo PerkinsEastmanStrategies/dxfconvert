@@ -4,7 +4,8 @@ import { GROUP_LABELS } from "./layers.js";
 import {
   formatBytes,
   loadSupabaseConfig,
-  saveSupabaseConfig,
+  saveSupabaseKey,
+  SUPABASE_BUCKET,
   uploadSvgToSupabase,
 } from "./supabase-upload.js";
 import { normalizeOutputFilename, toMobileFilename } from "./layers.js";
@@ -21,8 +22,6 @@ const els = {
   previewMobile: document.getElementById("preview-mobile"),
   metaDesktop: document.getElementById("meta-desktop"),
   metaMobile: document.getElementById("meta-mobile"),
-  supabaseUrl: document.getElementById("supabase-url"),
-  supabaseBucket: document.getElementById("supabase-bucket"),
   supabaseKey: document.getElementById("supabase-key"),
   saveConfigBtn: document.getElementById("save-config-btn"),
 };
@@ -36,10 +35,7 @@ function setStatus(message, type = "info") {
 }
 
 function loadConfigIntoForm() {
-  const config = loadSupabaseConfig();
-  els.supabaseUrl.value = config.supabaseUrl;
-  els.supabaseBucket.value = config.bucket;
-  els.supabaseKey.value = config.supabaseKey;
+  els.supabaseKey.value = loadSupabaseConfig().supabaseKey;
 }
 
 function suggestedFilenameFromDxf(file) {
@@ -178,18 +174,15 @@ async function handleSave() {
     return;
   }
 
-  const config = {
-    supabaseUrl: els.supabaseUrl.value.trim(),
-    bucket: els.supabaseBucket.value.trim(),
-    supabaseKey: els.supabaseKey.value.trim(),
-  };
-
-  if (!config.supabaseKey) {
-    setStatus("Add your Supabase service role key in settings before uploading.", "error");
+  const supabaseKey = els.supabaseKey.value.trim();
+  if (!supabaseKey) {
+    setStatus("Add your Supabase service role key before uploading.", "error");
     return;
   }
 
-  saveSupabaseConfig(config);
+  saveSupabaseKey(supabaseKey);
+  const config = loadSupabaseConfig();
+  config.supabaseKey = supabaseKey;
   els.saveBtn.disabled = true;
   setStatus("Uploading to Supabase…");
 
@@ -201,7 +194,7 @@ async function handleSave() {
     ]);
 
     setStatus(
-      `Saved ${base} and ${mobileName} to Supabase bucket "${config.bucket}".`,
+      `Saved ${base} and ${mobileName} to Supabase bucket "${SUPABASE_BUCKET}".`,
       "success",
     );
     console.info("Uploaded:", desktopUpload.publicUrl, mobileUpload.publicUrl);
@@ -224,12 +217,8 @@ els.convertBtn.addEventListener("click", handleConvert);
 els.downloadBtn.addEventListener("click", handleDownload);
 els.saveBtn.addEventListener("click", handleSave);
 els.saveConfigBtn.addEventListener("click", () => {
-  saveSupabaseConfig({
-    supabaseUrl: els.supabaseUrl.value.trim(),
-    bucket: els.supabaseBucket.value.trim(),
-    supabaseKey: els.supabaseKey.value.trim(),
-  });
-  setStatus("Supabase settings saved in this browser.", "success");
+  saveSupabaseKey(els.supabaseKey.value.trim());
+  setStatus("Service role key saved in this browser.", "success");
 });
 
 loadConfigIntoForm();

@@ -53,22 +53,24 @@
         <div>
           <h2>Supabase upload</h2>
           <p class="hint">
-            Uses the <code>floor-plans</code> bucket from AISD-ESA. Paste your service role key once;
-            it stays in local browser storage only.
+            Uploads to <code>floor-plans</code> on the AISD-ESA Supabase project. Paste your
+            service role key once; it stays in local browser storage only.
           </p>
-          <label>
-            Supabase URL
-            <input id="supabase-url" type="url" autocomplete="off" />
-          </label>
-          <label>
-            Bucket
-            <input id="supabase-bucket" type="text" autocomplete="off" />
-          </label>
+          <dl class="supabase-target">
+            <div>
+              <dt>Project</dt>
+              <dd>mgflyiwrzcmxxuxpfotk.supabase.co</dd>
+            </div>
+            <div>
+              <dt>Bucket</dt>
+              <dd>floor-plans</dd>
+            </div>
+          </dl>
           <label>
             Service role key
             <input id="supabase-key" type="password" autocomplete="off" placeholder="eyJ…" />
           </label>
-          <button id="save-config-btn" type="button">Save settings</button>
+          <button id="save-config-btn" type="button">Save key</button>
         </div>
       </section>
 
