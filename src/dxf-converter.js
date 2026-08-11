@@ -196,7 +196,7 @@ export function buildAisdSvg(entities, mode = "desktop") {
     .join("\n");
 
   const raw = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:serif="http://www.serif.com/"
   viewBox="${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}"
   preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
   <g stroke="#000000" fill="none" transform="matrix(1,0,0,-1,0,0)">
