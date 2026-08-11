@@ -2,6 +2,11 @@ import "./styles.css";
 import { convertDxfToAisdSvg } from "./dxf-converter.js";
 import { GROUP_LABELS } from "./layers.js";
 import {
+  buildRoomInventory,
+  roomInventoryFilename,
+  roomInventoryToCsv,
+} from "./room-inventory.js";
+import {
   formatBytes,
   loadSupabaseConfig,
   saveSupabaseKey,
@@ -16,7 +21,9 @@ const els = {
   convertBtn: document.getElementById("convert-btn"),
   saveBtn: document.getElementById("save-btn"),
   downloadBtn: document.getElementById("download-btn"),
+  downloadCsvBtn: document.getElementById("download-csv-btn"),
   status: document.getElementById("status"),
+  inventorySummary: document.getElementById("inventory-summary"),
   layerTable: document.getElementById("layer-table"),
   previewDesktop: document.getElementById("preview-desktop"),
   previewMobile: document.getElementById("preview-mobile"),
@@ -26,7 +33,7 @@ const els = {
   saveConfigBtn: document.getElementById("save-config-btn"),
 };
 
-/** @type {{ desktop?: string, mobile?: string, layers?: Array<{layer:string,count:number,group:string}> } | null} */
+/** @type {{ desktop?: string, mobile?: string, layers?: Array<{layer:string,count:number,group:string}>, inventory?: ReturnType<typeof buildRoomInventory>, dxfText?: string } | null} */
 let result = null;
 
 function setStatus(message, type = "info") {
@@ -111,10 +118,14 @@ async function handleConvert() {
     const desktop = convertDxfToAisdSvg(dxfText, "desktop");
     const mobile = convertDxfToAisdSvg(dxfText, "mobile");
 
+    const inventory = buildRoomInventory(dxfText);
+
     result = {
       desktop: desktop.svg,
       mobile: mobile.svg,
       layers: desktop.layers,
+      inventory,
+      dxfText,
     };
 
     if (!els.fileName.value.trim()) {
@@ -122,11 +133,13 @@ async function handleConvert() {
     }
 
     renderLayerTable(result.layers);
+    renderInventorySummary(result.inventory);
     showPreview(els.previewDesktop, result.desktop, els.metaDesktop, "Desktop SVG");
     showPreview(els.previewMobile, result.mobile, els.metaMobile, "Mobile SVG");
 
     els.saveBtn.disabled = false;
     els.downloadBtn.disabled = false;
+    els.downloadCsvBtn.disabled = false;
 
     setStatus(
       `Converted ${desktop.entityCount.toLocaleString()} entities (desktop) / ${mobile.entityCount.toLocaleString()} (mobile) from ${desktop.totalEntities.toLocaleString()} total.`,
@@ -135,22 +148,41 @@ async function handleConvert() {
   } catch (err) {
     console.error(err);
     result = null;
+    renderInventorySummary(null);
     els.saveBtn.disabled = true;
     els.downloadBtn.disabled = true;
+    els.downloadCsvBtn.disabled = true;
     setStatus(err instanceof Error ? err.message : "Conversion failed.", "error");
   } finally {
     els.convertBtn.disabled = false;
   }
 }
 
-function downloadSvg(filename, svgText) {
-  const blob = new Blob([svgText], { type: "image/svg+xml" });
+function renderInventorySummary(inventory) {
+  if (!inventory) {
+    els.inventorySummary.textContent = "";
+    return;
+  }
+  const { summary } = inventory;
+  els.inventorySummary.textContent =
+    `Room inventory: ${summary.labelCount} labels · ${summary.spaceCount} spaces · ` +
+    `${summary.matched} matched · ${summary.nearest} nearest · ` +
+    `${summary.unmatchedLabels} unmatched labels · ${summary.duplicateLabels} duplicate labels · ` +
+    `${summary.orphanSpaces} spaces without labels. Download CSV for details.`;
+}
+
+function downloadTextFile(filename, text, mimeType) {
+  const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadSvg(filename, svgText) {
+  downloadTextFile(filename, svgText, "image/svg+xml");
 }
 
 function handleDownload() {
@@ -163,6 +195,18 @@ function handleDownload() {
   downloadSvg(base, result.desktop);
   downloadSvg(toMobileFilename(base), result.mobile);
   setStatus(`Downloaded ${base} and ${toMobileFilename(base)}.`, "success");
+}
+
+function handleDownloadCsv() {
+  if (!result?.inventory) return;
+  const base = normalizeOutputFilename(els.fileName.value);
+  if (!base) {
+    setStatus("Enter an output file name.", "error");
+    return;
+  }
+  const csvName = roomInventoryFilename(base);
+  downloadTextFile(csvName, roomInventoryToCsv(result.inventory), "text/csv");
+  setStatus(`Downloaded ${csvName}.`, "success");
 }
 
 async function handleSave() {
@@ -215,6 +259,7 @@ els.dxfInput.addEventListener("change", () => {
 
 els.convertBtn.addEventListener("click", handleConvert);
 els.downloadBtn.addEventListener("click", handleDownload);
+els.downloadCsvBtn.addEventListener("click", handleDownloadCsv);
 els.saveBtn.addEventListener("click", handleSave);
 els.saveConfigBtn.addEventListener("click", () => {
   saveSupabaseKey(els.supabaseKey.value.trim());
@@ -224,3 +269,4 @@ els.saveConfigBtn.addEventListener("click", () => {
 loadConfigIntoForm();
 els.saveBtn.disabled = true;
 els.downloadBtn.disabled = true;
+els.downloadCsvBtn.disabled = true;

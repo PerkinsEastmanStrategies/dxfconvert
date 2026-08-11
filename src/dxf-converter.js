@@ -11,7 +11,7 @@ function escapeXml(value) {
     .replace(/"/g, "&quot;");
 }
 
-function cleanMtext(value) {
+export function cleanMtext(value) {
   return String(value || "")
     .replace(/\\P/g, "\n")
     .replace(/\\[^\\;]*;/g, "")
@@ -19,7 +19,7 @@ function cleanMtext(value) {
     .trim();
 }
 
-function applyTransform(point, transforms) {
+export function applyTransform(point, transforms) {
   let { x, y } = point;
   for (const t of transforms || []) {
     if (t.x != null) x += t.x;
@@ -39,7 +39,7 @@ function applyTransform(point, transforms) {
   return { x, y };
 }
 
-function getVertices(entity) {
+export function getVertices(entity) {
   if (entity.vertices?.length) {
     return entity.vertices.map((v) => applyTransform({ x: v.x, y: v.y }, entity.transforms));
   }
@@ -78,7 +78,7 @@ function getVertices(entity) {
   return [];
 }
 
-function isClosedEntity(entity) {
+export function isClosedEntity(entity) {
   if (entity.type === "LWPOLYLINE" || entity.type === "POLYLINE") {
     return Boolean(entity.closed);
   }
@@ -94,7 +94,7 @@ function pathFromPoints(points, closed = false) {
 }
 
 /** Room number only — first MTEXT/TEXT line (skip room-name subtext on line 2+). */
-function cafmRoomIdFromLabel(label) {
+export function cafmRoomIdFromLabel(label) {
   return label.split("\n")[0]?.trim() ?? "";
 }
 
