@@ -98,6 +98,29 @@ function cafmRoomIdFromLabel(label) {
   return label.split("\n")[0]?.trim() ?? "";
 }
 
+/** Compensate for the root Y-flip (matrix(1,0,0,-1)) so TEXT/MTEXT reads upright like AutoCAD. */
+function textRotationDegrees(entity) {
+  if (entity.rotation != null && Number.isFinite(entity.rotation)) return entity.rotation;
+  if (entity.xAxisX != null && entity.xAxisY != null) {
+    return (Math.atan2(entity.xAxisY, entity.xAxisX) * 180) / Math.PI;
+  }
+  return 0;
+}
+
+function textMirrorScaleX(entity) {
+  let sx = 1;
+  if (entity.relScaleX != null && entity.relScaleX < 0) sx = -1;
+  const mirror = entity.mirror ?? 0;
+  if (mirror & 2) sx *= -1;
+  return sx;
+}
+
+function textElementTransform(pt, rotationDeg, scaleX = 1) {
+  const { x, y } = pt;
+  const r = rotationDeg ?? 0;
+  return `translate(${x},${y}) scale(${scaleX},-1) rotate(${-r}) translate(${-x},${-y})`;
+}
+
 function textElement(entity, labelIndex = 0) {
   const label = cleanMtext(entity.string);
   const roomId = cafmRoomIdFromLabel(label);
@@ -105,12 +128,13 @@ function textElement(entity, labelIndex = 0) {
 
   const pt = applyTransform({ x: entity.x ?? 0, y: entity.y ?? 0 }, entity.transforms);
   const size = entity.textHeight || entity.nominalTextHeight || 12;
-  const rotation = entity.rotation ?? 0;
+  const rotation = textRotationDegrees(entity);
+  const scaleX = textMirrorScaleX(entity);
   const isMtext = entity.type === "MTEXT";
   const groupPrefix = isMtext ? "MTEXT" : "TEXT";
   const groupId = `${groupPrefix}${labelIndex}`;
 
-  const textMarkup = `<text x="${pt.x}" y="${pt.y}" font-size="${size}" fill="#000000" stroke="none" transform="rotate(${-rotation} ${pt.x} ${pt.y})"><tspan x="${pt.x}" dy="0">${escapeXml(roomId)}</tspan></text>`;
+  const textMarkup = `<text x="${pt.x}" y="${pt.y}" font-size="${size}" fill="#000000" stroke="none" transform="${textElementTransform(pt, rotation, scaleX)}"><tspan x="${pt.x}" dy="0">${escapeXml(roomId)}</tspan></text>`;
 
   // Match native CAFM/Serif exports — ESA parser expects TEXT/MTEXT wrapper groups.
   return `<g id="${groupId}" serif:id="${groupPrefix}">\n${textMarkup}\n</g>`;
