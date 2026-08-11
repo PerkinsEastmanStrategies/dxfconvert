@@ -93,23 +93,33 @@ function pathFromPoints(points, closed = false) {
   return `<path d="${d}" fill="none" stroke="#000000" />`;
 }
 
-function textElement(entity) {
+/** Room number only — first MTEXT/TEXT line (skip room-name subtext on line 2+). */
+function cafmRoomIdFromLabel(label) {
+  return label.split("\n")[0]?.trim() ?? "";
+}
+
+function textElement(entity, labelIndex = 0) {
   const label = cleanMtext(entity.string);
-  if (!label) return null;
+  const roomId = cafmRoomIdFromLabel(label);
+  if (!roomId) return null;
 
   const pt = applyTransform({ x: entity.x ?? 0, y: entity.y ?? 0 }, entity.transforms);
   const size = entity.textHeight || entity.nominalTextHeight || 12;
   const rotation = entity.rotation ?? 0;
-  const lines = label.split("\n");
-  const tspans = lines
-    .map((line, i) => `<tspan x="${pt.x}" dy="${i === 0 ? 0 : size * 1.2}">${escapeXml(line)}</tspan>`)
-    .join("");
+  const isMtext = entity.type === "MTEXT";
+  const groupPrefix = isMtext ? "MTEXT" : "TEXT";
+  const groupId = `${groupPrefix}${labelIndex}`;
 
-  return `<text x="${pt.x}" y="${pt.y}" font-size="${size}" fill="#000000" stroke="none" transform="rotate(${-rotation} ${pt.x} ${pt.y})">${tspans}</text>`;
+  const textMarkup = `<text x="${pt.x}" y="${pt.y}" font-size="${size}" fill="#000000" stroke="none" transform="rotate(${-rotation} ${pt.x} ${pt.y})"><tspan x="${pt.x}" dy="0">${escapeXml(roomId)}</tspan></text>`;
+
+  // Match native CAFM/Serif exports — ESA parser expects TEXT/MTEXT wrapper groups.
+  return `<g id="${groupId}" serif:id="${groupPrefix}">\n${textMarkup}\n</g>`;
 }
 
-function entityToSvg(entity) {
-  if (entity.type === "TEXT" || entity.type === "MTEXT") return textElement(entity);
+function entityToSvg(entity, cafmLabelIndex) {
+  if (entity.type === "TEXT" || entity.type === "MTEXT") {
+    return textElement(entity, cafmLabelIndex ?? 0);
+  }
   const points = getVertices(entity);
   return pathFromPoints(points, isClosedEntity(entity));
 }
@@ -135,12 +145,17 @@ export function buildAisdSvg(entities, mode = "desktop") {
   const groups = Object.fromEntries(GROUP_ORDER.map((g) => [g, []]));
   const frameGroups = PLAN_FRAME_GROUPS;
   const framePoints = [];
+  let cafmLabelIndex = 0;
 
   for (const entity of entities) {
     const group = classifyLayer(entity.layer);
     if (!group) continue;
 
-    const rendered = entityToSvg(entity);
+    const isCafmLabel =
+      group === "CAFM_ID" && (entity.type === "TEXT" || entity.type === "MTEXT");
+    const rendered = isCafmLabel
+      ? entityToSvg(entity, cafmLabelIndex++)
+      : entityToSvg(entity);
     if (!rendered) continue;
 
     const points = collectEntityPoints(entity);

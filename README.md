@@ -12,8 +12,10 @@ Simple browser tool for converting CAFM DXF floor plans into SVG files compatibl
 3. Produces two SVG files:
    - **Desktop** (`Your School ES.svg`) — core layers plus doors and bathroom/plumbing fixtures
    - **Mobile** (`Your School ES.mobile.svg`) — CAFM_ID and CAFM_SPACE only
-4. Applies the same high-contrast black-on-white styling used by the survey app
-5. Uploads both files to Supabase Storage (`floor-plans` bucket)
+4. Wraps each room label in `TEXT`/`MTEXT` groups (matches native CAFM exports and the ESA survey app parser)
+5. Exports only the first line of MTEXT labels (room number / CAFM id — no room-name subtext)
+6. Applies the same high-contrast black-on-white styling used by the survey app
+7. Uploads both files to Supabase Storage (`floor-plans` bucket)
 
 ## Quick start
 
