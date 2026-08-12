@@ -141,8 +141,11 @@ async function handleConvert() {
     els.downloadBtn.disabled = false;
     els.downloadCsvBtn.disabled = false;
 
+    const stripped = desktop.strippedFragments ?? 0;
+    const strippedNote =
+      stripped > 0 ? ` Stripped ${stripped.toLocaleString()} leftover fragments.` : "";
     setStatus(
-      `Converted ${desktop.entityCount.toLocaleString()} entities (desktop) / ${mobile.entityCount.toLocaleString()} (mobile) from ${desktop.totalEntities.toLocaleString()} total.`,
+      `Converted ${desktop.entityCount.toLocaleString()} entities (desktop) / ${mobile.entityCount.toLocaleString()} (mobile) from ${desktop.totalEntities.toLocaleString()} total.${strippedNote}`,
       "success",
     );
   } catch (err) {

@@ -2,6 +2,7 @@ import { parseString, denormalise } from "dxf";
 import { classifyLayer, DESKTOP_GROUPS, GROUP_ORDER, MOBILE_GROUPS } from "./layers.js";
 import { applyAisdSvgStyle } from "./svg-style.js";
 import { robustDxfViewBox, PLAN_FRAME_GROUPS } from "./svg-viewbox.js";
+import { stripFragmentItems } from "./spatial-filter.js";
 
 function escapeXml(value) {
   return String(value)
@@ -217,15 +218,25 @@ export function convertDxfToAisdSvg(dxfText, mode) {
 
   const allowed = mode === "mobile" ? MOBILE_GROUPS : DESKTOP_GROUPS;
 
-  const filtered = entities.filter((entity) => {
+  const layerFiltered = entities.filter((entity) => {
     const group = classifyLayer(entity.layer);
     return group != null && allowed.has(group);
   });
+
+  const { kept, stripped } = stripFragmentItems(
+    layerFiltered.map((entity) => ({
+      entity,
+      group: classifyLayer(entity.layer),
+      points: collectEntityPoints(entity),
+    })),
+  );
+  const filtered = kept.map((item) => item.entity);
 
   return {
     svg: buildAisdSvg(filtered, mode),
     entityCount: filtered.length,
     totalEntities: entities.length,
+    strippedFragments: stripped,
     layers: summarizeFromEntities(entities),
   };
 }
