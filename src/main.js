@@ -1,6 +1,8 @@
 import "./styles.css";
 import { convertDxfToAisdSvg } from "./dxf-converter.js";
 import { GROUP_LABELS } from "./layers.js";
+import { FLOOR_LEVELS, getFloorLevel } from "./floor-levels.js";
+import { loadAisdSchools, suggestFilename } from "./schools.js";
 import {
   buildRoomInventory,
   roomInventoryFilename,
@@ -12,12 +14,17 @@ import {
   saveSupabaseKey,
   SUPABASE_BUCKET,
   uploadSvgToSupabase,
+  upsertFloorPlanManifest,
 } from "./supabase-upload.js";
 import { normalizeOutputFilename, toMobileFilename } from "./layers.js";
 
 const els = {
   dxfInput: document.getElementById("dxf-input"),
   fileName: document.getElementById("file-name"),
+  schoolSearch: document.getElementById("school-search"),
+  schoolOptions: document.getElementById("school-options"),
+  schoolMeta: document.getElementById("school-meta"),
+  floorSelect: document.getElementById("floor-select"),
   convertBtn: document.getElementById("convert-btn"),
   saveBtn: document.getElementById("save-btn"),
   downloadBtn: document.getElementById("download-btn"),
@@ -36,6 +43,15 @@ const els = {
 /** @type {{ desktop?: string, mobile?: string, layers?: Array<{layer:string,count:number,group:string}>, inventory?: ReturnType<typeof buildRoomInventory>, dxfText?: string } | null} */
 let result = null;
 
+/** @type {Array<{ id: string, campusId: string, name: string, displayName: string, schoolClass: string }>} */
+let schools = [];
+
+/** @type {{ id: string, campusId: string, name: string, displayName: string, schoolClass: string } | null} */
+let selectedSchool = null;
+
+/** When true, school/floor changes rewrite the filename field. */
+let autoFilename = true;
+
 function setStatus(message, type = "info") {
   els.status.textContent = message;
   els.status.dataset.type = type;
@@ -43,6 +59,78 @@ function setStatus(message, type = "info") {
 
 function loadConfigIntoForm() {
   els.supabaseKey.value = loadSupabaseConfig().supabaseKey;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function populateFloorSelect() {
+  els.floorSelect.innerHTML =
+    `<option value="">Select floor…</option>` +
+    FLOOR_LEVELS.map(
+      (f) => `<option value="${f.id}">${escapeHtml(f.fullLabel)} (${f.shortLabel})</option>`,
+    ).join("");
+}
+
+function populateSchoolOptions(list) {
+  els.schoolOptions.innerHTML = list
+    .map(
+      (s) =>
+        `<option value="${escapeHtml(s.displayName)}" data-campus-id="${escapeHtml(s.campusId)}"></option>`,
+    )
+    .join("");
+}
+
+function findSchoolFromSearch(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  return (
+    schools.find((s) => s.displayName.toLowerCase() === q) ||
+    schools.find((s) => s.name.toLowerCase() === q) ||
+    schools.find((s) => s.displayName.toLowerCase().includes(q)) ||
+    schools.find((s) => s.name.toLowerCase().includes(q)) ||
+    null
+  );
+}
+
+function updateSchoolMeta() {
+  if (!selectedSchool) {
+    els.schoolMeta.textContent = "";
+    return;
+  }
+  els.schoolMeta.textContent = `${selectedSchool.displayName} · campus ${selectedSchool.campusId} · ${selectedSchool.schoolClass}`;
+}
+
+function syncSuggestedFilename() {
+  if (!autoFilename) return;
+  const floor = getFloorLevel(els.floorSelect.value);
+  if (!selectedSchool || !floor) return;
+  els.fileName.value = suggestFilename(selectedSchool, floor);
+}
+
+function onSchoolSearchChange() {
+  selectedSchool = findSchoolFromSearch(els.schoolSearch.value);
+  updateSchoolMeta();
+  syncSuggestedFilename();
+}
+
+function onFloorChange() {
+  syncSuggestedFilename();
+}
+
+async function initSchools() {
+  try {
+    schools = await loadAisdSchools();
+    populateSchoolOptions(schools);
+    setStatus(`Loaded ${schools.length} schools from geojson.`, "info");
+  } catch (err) {
+    console.error(err);
+    setStatus(err instanceof Error ? err.message : "Could not load schools.", "error");
+  }
 }
 
 function suggestedFilenameFromDxf(file) {
@@ -67,13 +155,6 @@ function renderLayerTable(layers) {
       </tr>`;
     })
     .join("");
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 function showPreview(container, svgText, metaEl, label) {
@@ -129,7 +210,11 @@ async function handleConvert() {
     };
 
     if (!els.fileName.value.trim()) {
-      els.fileName.value = suggestedFilenameFromDxf(file);
+      if (selectedSchool && els.floorSelect.value) {
+        syncSuggestedFilename();
+      } else {
+        els.fileName.value = suggestedFilenameFromDxf(file);
+      }
     }
 
     renderLayerTable(result.layers);
@@ -215,6 +300,17 @@ function handleDownloadCsv() {
 async function handleSave() {
   if (!result) return;
 
+  if (!selectedSchool) {
+    setStatus("Select a school that matches the geojson list before saving.", "error");
+    return;
+  }
+
+  const floor = getFloorLevel(els.floorSelect.value);
+  if (!floor) {
+    setStatus("Select a floor level before saving.", "error");
+    return;
+  }
+
   const base = normalizeOutputFilename(els.fileName.value);
   if (!base) {
     setStatus("Enter an output file name before saving.", "error");
@@ -231,7 +327,7 @@ async function handleSave() {
   const config = loadSupabaseConfig();
   config.supabaseKey = supabaseKey;
   els.saveBtn.disabled = true;
-  setStatus("Uploading to Supabase…");
+  setStatus("Uploading SVGs and saving school/floor metadata…");
 
   try {
     const mobileName = toMobileFilename(base);
@@ -240,14 +336,28 @@ async function handleSave() {
       uploadSvgToSupabase(config, mobileName, result.mobile),
     ]);
 
+    await upsertFloorPlanManifest(config, {
+      campusId: selectedSchool.campusId,
+      schoolName: selectedSchool.name,
+      schoolClass: selectedSchool.schoolClass,
+      floorLevelId: floor.id,
+      floorLabel: floor.fullLabel,
+      filename: base,
+      mobileFilename: mobileName,
+    });
+
     setStatus(
-      `Saved ${base} and ${mobileName} to Supabase bucket "${SUPABASE_BUCKET}".`,
+      `Saved ${base} + ${mobileName} to "${SUPABASE_BUCKET}", and recorded ${selectedSchool.name} / ${floor.fullLabel} in floor_plan_manifest.`,
       "success",
     );
     console.info("Uploaded:", desktopUpload.publicUrl, mobileUpload.publicUrl);
   } catch (err) {
     console.error(err);
-    setStatus(err instanceof Error ? err.message : "Upload failed.", "error");
+    const message = err instanceof Error ? err.message : "Upload failed.";
+    const hint = /relation .* does not exist|Could not find the table/i.test(message)
+      ? " Run supabase/floor_plan_manifest.sql in the Supabase SQL editor first."
+      : "";
+    setStatus(`${message}${hint}`, "error");
   } finally {
     els.saveBtn.disabled = false;
   }
@@ -256,8 +366,16 @@ async function handleSave() {
 els.dxfInput.addEventListener("change", () => {
   const file = els.dxfInput.files?.[0];
   if (file && !els.fileName.value.trim()) {
-    els.fileName.value = suggestedFilenameFromDxf(file);
+    if (selectedSchool && els.floorSelect.value) syncSuggestedFilename();
+    else els.fileName.value = suggestedFilenameFromDxf(file);
   }
+});
+
+els.schoolSearch.addEventListener("change", onSchoolSearchChange);
+els.schoolSearch.addEventListener("input", onSchoolSearchChange);
+els.floorSelect.addEventListener("change", onFloorChange);
+els.fileName.addEventListener("input", () => {
+  autoFilename = false;
 });
 
 els.convertBtn.addEventListener("click", handleConvert);
@@ -269,7 +387,9 @@ els.saveConfigBtn.addEventListener("click", () => {
   setStatus("Service role key saved in this browser.", "success");
 });
 
+populateFloorSelect();
 loadConfigIntoForm();
+void initSchools();
 els.saveBtn.disabled = true;
 els.downloadBtn.disabled = true;
 els.downloadCsvBtn.disabled = true;

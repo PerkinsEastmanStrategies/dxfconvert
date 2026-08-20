@@ -10,31 +10,51 @@ Simple browser tool for converting CAFM DXF floor plans into SVG files compatibl
    - **CAFM_SPACE** — room boundary geometry
    - **WALLS** — exterior wall linework
 3. Produces two SVG files:
-   - **Desktop** (`Your School ES.svg`) — core layers plus doors and bathroom/plumbing fixtures
-   - **Mobile** (`Your School ES.mobile.svg`) — CAFM_ID and CAFM_SPACE only
-4. Wraps each room label in `TEXT`/`MTEXT` groups (matches native CAFM exports and the ESA survey app parser)
-5. Exports only the first line of MTEXT labels (room number / CAFM id — no room-name subtext)
-6. Applies the same high-contrast black-on-white styling used by the survey app
-7. Uploads both files to Supabase Storage (`floor-plans` bucket)
+   - **Desktop** (`Your School ES L1.svg`) — core layers plus doors and bathroom/plumbing fixtures
+   - **Mobile** (`Your School ES L1.mobile.svg`) — CAFM_ID and CAFM_SPACE only
+4. Lets you pick a **school** (from AISD geojson) and **floor**, then suggests the filename
+5. Uploads both SVGs to Supabase Storage and upserts school + floor + filename into `floor_plan_manifest`
+6. Wraps each room label in `TEXT`/`MTEXT` groups (matches native CAFM exports and the ESA survey app parser)
+7. Strips leftover CAD fragments far from room spaces
+8. Applies the same high-contrast black-on-white styling used by the survey app
 
 ## Quick start
 
 ```bash
-cd dev/AISD-ESA-dxfconvert
+cd AISD-ESA-dxfconvert
 npm install
 npm run dev
 ```
 
-Open http://localhost:5174, choose a DXF, convert, enter the output filename (e.g. `ALLISON ES.svg`), then save to Supabase.
+Open http://localhost:5174, choose a DXF, convert, pick school + floor, then save to Supabase.
 
 ## Supabase setup
 
-1. Copy `config.example.js` to `config.local.js` if you want defaults in source (optional)
-2. In the app, paste your **Supabase service role key** under Supabase upload settings
-3. The key is stored in `localStorage` only — it is not committed to git
+### 1. Create the manifest table (once)
+
+In the Supabase SQL editor, run:
+
+[`supabase/floor_plan_manifest.sql`](supabase/floor_plan_manifest.sql)
+
+This creates `public.floor_plan_manifest` with a unique key on `(campus_id, floor_level_id)`.
+
+### 2. Service role key in the app
+
+1. Paste your **Supabase service role key** under Supabase upload settings
+2. The key is stored in `localStorage` only — it is not committed to git
 
 Default bucket: `floor-plans`  
 Default URL: `https://mgflyiwrzcmxxuxpfotk.supabase.co`
+
+### Workflow
+
+1. Convert a DXF
+2. Search/select the school (must match geojson `NAME` / `CAMPUS_ID`)
+3. Select floor (Basement, Floor 1–5, Mezzanine)
+4. Confirm or edit the suggested filename
+5. **Save to Supabase** → uploads `.svg` + `.mobile.svg` and records the mapping
+
+ESA still reads the Google Sheet today. Once the table is populated, the survey app can be switched to load from `floor_plan_manifest` instead.
 
 ## Layer matching
 

@@ -23,13 +23,40 @@
       </section>
 
       <section class="panel">
-        <h2>2. Output name</h2>
+        <h2>2. School &amp; floor</h2>
         <p class="hint">
-          Use the same naming convention as the floor plan manifest, e.g.
-          <code>ALLISON ES.svg</code>. A mobile copy is saved automatically as
-          <code>ALLISON ES.mobile.svg</code>.
+          Pick the campus from the AISD geojson list, then the floor level. The output filename
+          is suggested automatically and is saved to Supabase with the SVGs.
         </p>
-        <input id="file-name" type="text" placeholder="SCHOOL NAME ES.svg" />
+        <div class="meta-grid">
+          <label>
+            School
+            <input
+              id="school-search"
+              type="search"
+              list="school-options"
+              placeholder="Search school name…"
+              autocomplete="off"
+            />
+            <datalist id="school-options"></datalist>
+          </label>
+          <label>
+            Floor
+            <select id="floor-select">
+              <option value="">Select floor…</option>
+            </select>
+          </label>
+        </div>
+        <p id="school-meta" class="hint"></p>
+      </section>
+
+      <section class="panel">
+        <h2>3. Output name</h2>
+        <p class="hint">
+          Suggested from school + floor (e.g. <code>ALLISON ES L1.svg</code>). You can edit before
+          saving. A mobile copy is saved as <code>…mobile.svg</code>.
+        </p>
+        <input id="file-name" type="text" placeholder="SCHOOL NAME ES L1.svg" />
       </section>
 
       <section class="panel grid-2">
