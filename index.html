@@ -9,150 +9,217 @@
     <div class="app">
       <header class="header">
         <h1>AISD ESA DXF &gt; SVG converter</h1>
+        <nav class="tabs" aria-label="Tool sections">
+          <button type="button" class="tab active" data-tab="floor-plans">Floor plans</button>
+          <button type="button" class="tab" data-tab="room-schedule">Room schedule</button>
+        </nav>
       </header>
 
-      <section class="panel">
-        <h2>1. Source file</h2>
-        <div class="row">
-          <label class="file-picker">
-            <span>Choose DXF</span>
-            <input id="dxf-input" type="file" accept=".dxf,text/plain" />
-          </label>
-          <p id="dxf-file-status" class="file-loaded" data-type="empty">No file loaded yet.</p>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>2. School &amp; floor</h2>
-        <p class="hint">
-          Pick the campus from the AISD geojson list, then the floor level. The output filename
-          is suggested automatically and is saved to Supabase with the SVGs.
-        </p>
-        <div class="meta-grid">
-          <label>
-            School
-            <input
-              id="school-search"
-              type="search"
-              list="school-options"
-              placeholder="Search school name…"
-              autocomplete="off"
-            />
-            <datalist id="school-options"></datalist>
-          </label>
-          <label>
-            Floor
-            <select id="floor-select">
-              <option value="">Select floor…</option>
-            </select>
-          </label>
-        </div>
-        <p id="school-meta" class="hint"></p>
-      </section>
-
-      <section class="panel">
-        <h2>3. Output name</h2>
-        <p class="hint">
-          Suggested from school + floor (e.g. <code>ALLISON ES L1.svg</code>). You can edit it,
-          then convert. A mobile copy is saved as <code>…mobile.svg</code>.
-        </p>
-        <div class="row">
-          <input id="file-name" type="text" placeholder="SCHOOL NAME ES L1.svg" />
-          <button id="convert-btn" type="button" class="primary">Convert</button>
-        </div>
-      </section>
-
-      <section class="panel grid-2">
-        <div>
-          <h2>4. Layer summary</h2>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>DXF layer</th>
-                  <th>Entities</th>
-                  <th>Export group</th>
-                </tr>
-              </thead>
-              <tbody id="layer-table">
-                <tr><td colspan="3">Convert a DXF to see layer mapping.</td></tr>
-              </tbody>
-            </table>
+      <div id="tab-floor-plans" class="tab-panel" data-tab-panel="floor-plans">
+        <section class="panel">
+          <h2>1. Source file</h2>
+          <div class="row">
+            <label class="file-picker">
+              <span>Choose DXF</span>
+              <input id="dxf-input" type="file" accept=".dxf,text/plain" />
+            </label>
+            <p id="dxf-file-status" class="file-loaded" data-type="empty">No file loaded yet.</p>
           </div>
-        </div>
-        <div>
-          <h2>Supabase upload</h2>
+        </section>
+
+        <section class="panel">
+          <h2>2. School &amp; floor</h2>
           <p class="hint">
-            Uploads to <code>floor-plans</code> on the AISD-ESA Supabase project. Paste your
-            service role key once; it stays in local browser storage only.
+            Pick the campus from the AISD geojson list, then the floor level. The output filename
+            is suggested automatically and is saved to Supabase with the SVGs.
           </p>
-          <dl class="supabase-target">
-            <div>
-              <dt>Project</dt>
-              <dd>mgflyiwrzcmxxuxpfotk.supabase.co</dd>
+          <div class="meta-grid">
+            <label>
+              School
+              <input
+                id="school-search"
+                type="search"
+                list="school-options"
+                placeholder="Search school name…"
+                autocomplete="off"
+              />
+              <datalist id="school-options"></datalist>
+            </label>
+            <label>
+              Floor
+              <select id="floor-select">
+                <option value="">Select floor…</option>
+              </select>
+            </label>
+          </div>
+          <p id="school-meta" class="hint"></p>
+        </section>
+
+        <section class="panel">
+          <h2>3. Output name</h2>
+          <p class="hint">
+            Suggested from school + floor (e.g. <code>ALLISON ES L1.svg</code>). You can edit it,
+            then convert. A mobile copy is saved as <code>…mobile.svg</code>.
+          </p>
+          <div class="row">
+            <input id="file-name" type="text" placeholder="SCHOOL NAME ES L1.svg" />
+            <button id="convert-btn" type="button" class="primary">Convert</button>
+          </div>
+        </section>
+
+        <section class="panel grid-2">
+          <div>
+            <h2>4. Layer summary</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>DXF layer</th>
+                    <th>Entities</th>
+                    <th>Export group</th>
+                  </tr>
+                </thead>
+                <tbody id="layer-table">
+                  <tr><td colspan="3">Convert a DXF to see layer mapping.</td></tr>
+                </tbody>
+              </table>
             </div>
-            <div>
-              <dt>Bucket</dt>
-              <dd>floor-plans</dd>
-            </div>
-          </dl>
+          </div>
+          <div>
+            <h2>Supabase upload</h2>
+            <p class="hint">
+              Uploads to <code>floor-plans</code> on the AISD-ESA Supabase project. Paste your
+              service role key once; it stays in local browser storage only.
+            </p>
+            <dl class="supabase-target">
+              <div>
+                <dt>Project</dt>
+                <dd>mgflyiwrzcmxxuxpfotk.supabase.co</dd>
+              </div>
+              <div>
+                <dt>Bucket</dt>
+                <dd>floor-plans</dd>
+              </div>
+            </dl>
+            <label>
+              Service role key
+              <input id="supabase-key" type="password" autocomplete="off" placeholder="eyJ…" />
+            </label>
+            <button id="save-config-btn" type="button">Save key</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>5. Save floor plans</h2>
+          <div class="actions">
+            <button id="download-btn" type="button">Download both SVGs</button>
+            <button id="download-csv-btn" type="button">Download room CSV</button>
+            <button id="save-btn" type="button" class="primary">Save to Supabase</button>
+          </div>
+          <p id="inventory-summary" class="hint"></p>
+          <p id="status" class="status" data-type="info"></p>
+        </section>
+
+        <section class="panel previews">
+          <div class="preview-card">
+            <h3>Desktop SVG</h3>
+            <p class="meta" id="meta-desktop"></p>
+            <p class="hint">Keeps doors and bathroom/plumbing fixtures in addition to core layers.</p>
+            <div id="preview-desktop" class="preview-frame"></div>
+          </div>
+          <div class="preview-card">
+            <h3>Mobile SVG</h3>
+            <p class="meta" id="meta-mobile"></p>
+            <p class="hint">Lean Version</p>
+            <div id="preview-mobile" class="preview-frame"></div>
+          </div>
+        </section>
+      </div>
+
+      <div id="tab-room-schedule" class="tab-panel" data-tab-panel="room-schedule" hidden>
+        <section class="panel">
+          <h2>Supabase</h2>
+          <p class="hint">
+            Same service role key as Floor plans. Uploads go to table
+            <code>roomschedule</code> (run <code>supabase/roomschedule.sql</code> once first).
+          </p>
           <label>
             Service role key
-            <input id="supabase-key" type="password" autocomplete="off" placeholder="eyJ…" />
+            <input id="schedule-supabase-key" type="password" autocomplete="off" placeholder="eyJ…" />
           </label>
-          <button id="save-config-btn" type="button">Save key</button>
-        </div>
-      </section>
+          <button id="save-schedule-config-btn" type="button">Save key</button>
+        </section>
 
-      <section class="panel">
-        <h2>5. Save floor plans</h2>
-        <div class="actions">
-          <button id="download-btn" type="button">Download both SVGs</button>
-          <button id="download-csv-btn" type="button">Download room CSV</button>
-          <button id="save-btn" type="button" class="primary">Save to Supabase</button>
-        </div>
-        <p id="inventory-summary" class="hint"></p>
-        <p id="status" class="status" data-type="info"></p>
-      </section>
+        <section class="panel">
+          <h2>1. Single school</h2>
+          <p class="hint">
+            School and DXF carry over from the Floor plans tab. Download a template with
+            <code>school_name</code> + <code>CAFM_ID</code> filled, edit the other columns, then
+            upload that CSV for this campus only. Use Override DXF only if you need a different file.
+          </p>
+          <p id="schedule-shared-context" class="hint"></p>
+          <div class="meta-grid">
+            <label>
+              School
+              <input
+                id="schedule-school-search"
+                type="search"
+                list="schedule-school-options"
+                placeholder="Search school name…"
+                autocomplete="off"
+              />
+              <datalist id="schedule-school-options"></datalist>
+            </label>
+            <div class="row" style="align-items: flex-end; margin-bottom: 10px">
+              <label class="file-picker">
+                <span>Override DXF (optional)</span>
+                <input id="schedule-dxf-input" type="file" accept=".dxf,text/plain" />
+              </label>
+              <p id="schedule-dxf-status" class="file-loaded" data-type="empty">
+                Using Floor plans DXF when available.
+              </p>
+            </div>
+          </div>
+          <p id="schedule-school-meta" class="hint"></p>
+          <div class="actions">
+            <button id="download-schedule-template-btn" type="button">
+              Download school template
+            </button>
+            <label class="file-picker">
+              <span>Choose school schedule CSV</span>
+              <input id="schedule-csv-input" type="file" accept=".csv,text/csv" />
+            </label>
+            <button id="upload-schedule-btn" type="button" class="primary">
+              Upload school schedule
+            </button>
+          </div>
+          <p id="schedule-csv-file-status" class="file-loaded" data-type="empty">No CSV loaded yet.</p>
+          <p id="schedule-status" class="status" data-type="info"></p>
+        </section>
 
-      <section class="panel previews">
-        <div class="preview-card">
-          <h3>Desktop SVG</h3>
-          <p class="meta" id="meta-desktop"></p>
-          <p class="hint">Keeps doors and bathroom/plumbing fixtures in addition to core layers.</p>
-          <div id="preview-desktop" class="preview-frame"></div>
-        </div>
-        <div class="preview-card">
-          <h3>Mobile SVG</h3>
-          <p class="meta" id="meta-mobile"></p>
-          <p class="hint">Lean Version</p>
-          <div id="preview-mobile" class="preview-frame"></div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>6. Room schedule</h2>
-        <p class="hint">
-          After converting the floor plan, download a CSV template with the ESA room-use columns.
-          <code>school_name</code> comes from the selected geojson school (<code>NAME</code>), and
-          <code>CAFM_ID</code> is filled from CAFM labels in the uploaded DXF. Upload the filled
-          file to Supabase table <code>roomschedule</code> (run
-          <code>supabase/roomschedule.sql</code> once first).
-        </p>
-        <div class="actions">
-          <button id="download-schedule-template-btn" type="button">
-            Download schedule template
-          </button>
-          <label class="file-picker">
-            <span>Choose schedule CSV</span>
-            <input id="schedule-csv-input" type="file" accept=".csv,text/csv" />
-          </label>
-          <button id="upload-schedule-btn" type="button" class="primary">
-            Upload schedule to Supabase
-          </button>
-        </div>
-        <p id="schedule-status" class="status" data-type="info"></p>
-      </section>
+        <section class="panel">
+          <h2>2. Batch upload (multiple schools)</h2>
+          <p class="hint">
+            Upload one CSV with many campuses. Every <code>school_name</code> must match a geojson
+            <code>NAME</code> exactly (e.g. <code>LANGFORD</code>). Columns must match the ESA sheet.
+            Each school in the file replaces that campus’s rows in Supabase.
+          </p>
+          <div class="actions">
+            <button id="download-batch-template-btn" type="button">
+              Download blank batch template
+            </button>
+            <label class="file-picker">
+              <span>Choose batch schedule CSV</span>
+              <input id="batch-schedule-csv-input" type="file" accept=".csv,text/csv" />
+            </label>
+            <button id="upload-batch-schedule-btn" type="button" class="primary">
+              Upload batch schedule
+            </button>
+          </div>
+          <p id="batch-schedule-file-status" class="file-loaded" data-type="empty">No CSV loaded yet.</p>
+          <p id="batch-schedule-status" class="status" data-type="info"></p>
+        </section>
+      </div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

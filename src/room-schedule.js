@@ -149,41 +149,69 @@ export function parseCsv(text) {
 }
 
 /**
- * Validate headers + school_name against the selected geojson school.
+ * Validate headers + school_name values.
+ * - Single-school mode: pass `{ school }` — every row must match that geojson NAME.
+ * - Batch mode: pass `{ schools }` — each school_name must match a geojson NAME exactly.
+ *
  * @param {string} csvText
- * @param {{ name: string, campusId: string }} school
- * @returns {{ rows: RoomScheduleRow[], errors: string[] }}
+ * @param {{
+ *   school?: { name: string, campusId: string },
+ *   schools?: Array<{ name: string, campusId: string }>,
+ * }} options
+ * @returns {{
+ *   rows: Array<RoomScheduleRow & { campus_id: string }>,
+ *   errors: string[],
+ *   schoolCount: number,
+ * }}
  */
-export function validateRoomScheduleCsv(csvText, school) {
+export function validateRoomScheduleCsv(csvText, options = {}) {
   /** @type {string[]} */
   const errors = [];
-  const expectedName = String(school?.name || "").trim();
+  const singleSchool = options.school ?? null;
+  const schoolList = options.schools ?? (singleSchool ? [singleSchool] : []);
 
-  if (!expectedName) {
+  if (!schoolList.length) {
+    errors.push("School list is not loaded.");
+    return { rows: [], errors, schoolCount: 0 };
+  }
+
+  if (singleSchool && !String(singleSchool.name || "").trim()) {
     errors.push("Select a school before uploading a room schedule.");
-    return { rows: [], errors };
+    return { rows: [], errors, schoolCount: 0 };
+  }
+
+  /** @type {Map<string, { name: string, campusId: string }>} */
+  const byName = new Map();
+  for (const s of schoolList) {
+    const name = String(s.name || "").trim();
+    if (name) byName.set(name, s);
   }
 
   const matrix = parseCsv(csvText);
   if (matrix.length < 1) {
     errors.push("CSV is empty.");
-    return { rows: [], errors };
+    return { rows: [], errors, schoolCount: 0 };
   }
 
   const header = matrix[0].map((h) => String(h).trim());
   const headerErrors = validateHeaders(header);
   if (headerErrors.length) {
     errors.push(...headerErrors);
-    return { rows: [], errors };
+    return { rows: [], errors, schoolCount: 0 };
   }
 
   const idx = Object.fromEntries(
     ROOM_SCHEDULE_HEADERS.map((h) => [h, header.findIndex((x) => normHeader(x) === normHeader(h))]),
   );
 
-  /** @type {RoomScheduleRow[]} */
+  /** @type {Array<RoomScheduleRow & { campus_id: string }>} */
   const rows = [];
-  const seenCafm = new Set();
+  /** @type {Set<string>} */
+  const seenSchoolCafm = new Set();
+  /** @type {Set<string>} */
+  const schoolsSeen = new Set();
+  /** @type {Set<string>} */
+  const unknownSchools = new Set();
 
   for (let r = 1; r < matrix.length; r += 1) {
     const line = matrix[r];
@@ -215,10 +243,21 @@ export function validateRoomScheduleCsv(csvText, school) {
       continue;
     }
 
-    if (schoolName !== expectedName) {
+    if (singleSchool && schoolName !== singleSchool.name) {
       errors.push(
-        `Row ${lineNo}: school_name "${schoolName}" does not match selected school "${expectedName}" (must match the geojson NAME exactly).`,
+        `Row ${lineNo}: school_name "${schoolName}" does not match selected school "${singleSchool.name}" (must match the geojson NAME exactly).`,
       );
+      continue;
+    }
+
+    const matched = byName.get(schoolName);
+    if (!matched) {
+      if (!unknownSchools.has(schoolName)) {
+        unknownSchools.add(schoolName);
+        errors.push(
+          `school_name "${schoolName}" is not in the geojson school list (must match NAME exactly).`,
+        );
+      }
       continue;
     }
 
@@ -227,15 +266,19 @@ export function validateRoomScheduleCsv(csvText, school) {
       continue;
     }
 
-    const cafmKey = cafmId.toUpperCase();
-    if (seenCafm.has(cafmKey)) {
-      errors.push(`Row ${lineNo}: duplicate CAFM_ID "${cafmId}".`);
+    const cafmKey = `${matched.campusId}::${cafmId.toUpperCase()}`;
+    if (seenSchoolCafm.has(cafmKey)) {
+      errors.push(
+        `Row ${lineNo}: duplicate CAFM_ID "${cafmId}" for school "${schoolName}".`,
+      );
       continue;
     }
-    seenCafm.add(cafmKey);
+    seenSchoolCafm.add(cafmKey);
+    schoolsSeen.add(schoolName);
 
     rows.push({
       school_name: schoolName,
+      campus_id: matched.campusId,
       cafm_id: cafmId,
       name,
       neighborhood,
@@ -250,7 +293,24 @@ export function validateRoomScheduleCsv(csvText, school) {
     errors.push("No data rows found. Fill in at least one room (CAFM_ID) before uploading.");
   }
 
-  return { rows, errors };
+  return { rows, errors, schoolCount: schoolsSeen.size };
+}
+
+/**
+ * Blank multi-school template (headers + a few empty rows).
+ * @param {number} [blankRows]
+ */
+export function buildBatchRoomScheduleTemplateCsv(blankRows = 15) {
+  const header = ROOM_SCHEDULE_HEADERS.join(",");
+  const lines = [header];
+  for (let i = 0; i < blankRows; i += 1) {
+    lines.push(",,,,,,,");
+  }
+  return `${lines.join("\r\n")}\r\n`;
+}
+
+export function batchRoomScheduleTemplateFilename() {
+  return "aisd_room_schedule_batch.csv";
 }
 
 /**

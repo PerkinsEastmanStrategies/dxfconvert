@@ -119,6 +119,27 @@ export async function upsertFloorPlanManifest(config, row) {
 }
 
 /**
+ * Replace room-schedule rows for one or more campuses.
+ * Each campus in `rowsByCampusId` is deleted then re-inserted.
+ * @param {SupabaseConfig} config
+ * @param {Map<string, RoomScheduleDbRow[]> | Record<string, RoomScheduleDbRow[]>} rowsByCampusId
+ */
+export async function replaceRoomSchedulesBatch(config, rowsByCampusId) {
+  const entries =
+    rowsByCampusId instanceof Map
+      ? [...rowsByCampusId.entries()]
+      : Object.entries(rowsByCampusId);
+
+  /** @type {unknown[]} */
+  const allInserted = [];
+  for (const [campusId, rows] of entries) {
+    const inserted = await replaceRoomSchedule(config, campusId, rows);
+    allInserted.push(...inserted);
+  }
+  return allInserted;
+}
+
+/**
  * Replace all room-schedule rows for a campus with the uploaded CSV rows.
  * @param {SupabaseConfig} config
  * @param {string} campusId
@@ -150,10 +171,16 @@ export async function replaceRoomSchedule(config, campusId, rows) {
     updated_at: now,
   }));
 
-  const { data, error } = await supabase.from(ROOM_SCHEDULE_TABLE).insert(payload).select();
-
-  if (error) throw error;
-  return data ?? [];
+  /** @type {unknown[]} */
+  const inserted = [];
+  const chunkSize = 500;
+  for (let i = 0; i < payload.length; i += chunkSize) {
+    const chunk = payload.slice(i, i + chunkSize);
+    const { data, error } = await supabase.from(ROOM_SCHEDULE_TABLE).insert(chunk).select();
+    if (error) throw error;
+    if (data?.length) inserted.push(...data);
+  }
+  return inserted;
 }
 
 export function formatBytes(bytes) {
