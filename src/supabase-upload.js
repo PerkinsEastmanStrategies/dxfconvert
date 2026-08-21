@@ -5,6 +5,7 @@ const STORAGE_KEY = "aisd-dxfconvert-supabase-key";
 export const SUPABASE_URL = "https://mgflyiwrzcmxxuxpfotk.supabase.co";
 export const SUPABASE_BUCKET = "floor-plans";
 export const FLOOR_PLAN_MANIFEST_TABLE = "floor_plan_manifest";
+export const ROOM_SCHEDULE_TABLE = "roomschedule";
 
 /** @typedef {{ supabaseUrl: string, bucket: string, supabaseKey: string }} SupabaseConfig */
 
@@ -17,6 +18,18 @@ export const FLOOR_PLAN_MANIFEST_TABLE = "floor_plan_manifest";
  *   filename: string,
  *   mobileFilename: string,
  * }} FloorPlanManifestRow */
+
+/** @typedef {{
+ *   campusId: string,
+ *   schoolName: string,
+ *   cafmId: string,
+ *   name?: string,
+ *   neighborhood?: string,
+ *   area?: string,
+ *   programType?: string,
+ *   sfDeviation?: string,
+ *   roomNameUnsure?: string,
+ * }} RoomScheduleDbRow */
 
 export function loadSupabaseConfig() {
   let supabaseKey = "";
@@ -103,6 +116,44 @@ export async function upsertFloorPlanManifest(config, row) {
 
   if (error) throw error;
   return data;
+}
+
+/**
+ * Replace all room-schedule rows for a campus with the uploaded CSV rows.
+ * @param {SupabaseConfig} config
+ * @param {string} campusId
+ * @param {RoomScheduleDbRow[]} rows
+ */
+export async function replaceRoomSchedule(config, campusId, rows) {
+  const supabase = createSupabaseClient(config);
+  const now = new Date().toISOString();
+
+  const { error: deleteError } = await supabase
+    .from(ROOM_SCHEDULE_TABLE)
+    .delete()
+    .eq("campus_id", campusId);
+
+  if (deleteError) throw deleteError;
+
+  if (!rows.length) return [];
+
+  const payload = rows.map((row) => ({
+    campus_id: campusId,
+    school_name: row.schoolName,
+    cafm_id: row.cafmId,
+    name: row.name || null,
+    neighborhood: row.neighborhood || null,
+    area: row.area || null,
+    program_type: row.programType || null,
+    sf_deviation: row.sfDeviation || null,
+    room_name_unsure: row.roomNameUnsure || null,
+    updated_at: now,
+  }));
+
+  const { data, error } = await supabase.from(ROOM_SCHEDULE_TABLE).insert(payload).select();
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 export function formatBytes(bytes) {

@@ -11,15 +11,23 @@ import {
 import {
   formatBytes,
   loadSupabaseConfig,
+  replaceRoomSchedule,
   saveSupabaseKey,
   SUPABASE_BUCKET,
   uploadSvgToSupabase,
   upsertFloorPlanManifest,
 } from "./supabase-upload.js";
+import {
+  buildRoomScheduleTemplateCsv,
+  cafmIdsFromInventory,
+  roomScheduleTemplateFilename,
+  validateRoomScheduleCsv,
+} from "./room-schedule.js";
 import { normalizeOutputFilename, toMobileFilename } from "./layers.js";
 
 const els = {
   dxfInput: document.getElementById("dxf-input"),
+  dxfFileStatus: document.getElementById("dxf-file-status"),
   fileName: document.getElementById("file-name"),
   schoolSearch: document.getElementById("school-search"),
   schoolOptions: document.getElementById("school-options"),
@@ -29,6 +37,10 @@ const els = {
   saveBtn: document.getElementById("save-btn"),
   downloadBtn: document.getElementById("download-btn"),
   downloadCsvBtn: document.getElementById("download-csv-btn"),
+  downloadScheduleTemplateBtn: document.getElementById("download-schedule-template-btn"),
+  scheduleCsvInput: document.getElementById("schedule-csv-input"),
+  uploadScheduleBtn: document.getElementById("upload-schedule-btn"),
+  scheduleStatus: document.getElementById("schedule-status"),
   status: document.getElementById("status"),
   inventorySummary: document.getElementById("inventory-summary"),
   layerTable: document.getElementById("layer-table"),
@@ -55,6 +67,11 @@ let autoFilename = true;
 function setStatus(message, type = "info") {
   els.status.textContent = message;
   els.status.dataset.type = type;
+}
+
+function setScheduleStatus(message, type = "info") {
+  els.scheduleStatus.textContent = message;
+  els.scheduleStatus.dataset.type = type;
 }
 
 function loadConfigIntoForm() {
@@ -191,6 +208,21 @@ async function handleConvert() {
     return;
   }
 
+  if (!selectedSchool) {
+    setStatus("Select a school before converting.", "error");
+    return;
+  }
+
+  if (!els.floorSelect.value) {
+    setStatus("Select a floor before converting.", "error");
+    return;
+  }
+
+  if (!els.fileName.value.trim()) {
+    setStatus("Enter an output file name before converting.", "error");
+    return;
+  }
+
   setStatus("Converting…");
   els.convertBtn.disabled = true;
 
@@ -297,6 +329,127 @@ function handleDownloadCsv() {
   setStatus(`Downloaded ${csvName}.`, "success");
 }
 
+async function handleDownloadScheduleTemplate() {
+  if (!selectedSchool) {
+    setScheduleStatus("Select a school first so the template can use the geojson school name.", "error");
+    return;
+  }
+
+  els.downloadScheduleTemplateBtn.disabled = true;
+  setScheduleStatus("Building schedule template…");
+
+  try {
+    let inventory = result?.inventory ?? null;
+    if (!inventory) {
+      const file = els.dxfInput.files?.[0];
+      if (!file) {
+        setScheduleStatus(
+          "Choose a DXF first so CAFM_ID values can be filled from room labels.",
+          "error",
+        );
+        return;
+      }
+      const dxfText = await readFileAsText(file);
+      inventory = buildRoomInventory(dxfText);
+    }
+
+    const cafmIds = cafmIdsFromInventory(inventory);
+    const csv = buildRoomScheduleTemplateCsv(selectedSchool.name, { cafmIds });
+    const filename = roomScheduleTemplateFilename(selectedSchool.name);
+    downloadTextFile(filename, csv, "text/csv");
+
+    if (cafmIds.length) {
+      setScheduleStatus(
+        `Downloaded ${filename} with school_name="${selectedSchool.name}" and ${cafmIds.length} CAFM_ID(s) from the DXF. Fill Name / Neighborhood / Area / Program Type, then upload.`,
+        "success",
+      );
+    } else {
+      setScheduleStatus(
+        `Downloaded ${filename} with school_name="${selectedSchool.name}", but no CAFM_ID labels were found in the DXF. Add room rows manually or check the CAFM_ID layer.`,
+        "error",
+      );
+    }
+  } catch (err) {
+    console.error(err);
+    setScheduleStatus(
+      err instanceof Error ? err.message : "Could not build schedule template from DXF.",
+      "error",
+    );
+  } finally {
+    els.downloadScheduleTemplateBtn.disabled = false;
+  }
+}
+
+async function handleUploadSchedule() {
+  if (!selectedSchool) {
+    setScheduleStatus("Select a school before uploading a room schedule.", "error");
+    return;
+  }
+
+  const file = els.scheduleCsvInput.files?.[0];
+  if (!file) {
+    setScheduleStatus("Choose a room schedule CSV file to upload.", "error");
+    return;
+  }
+
+  const supabaseKey = els.supabaseKey.value.trim();
+  if (!supabaseKey) {
+    setScheduleStatus("Add your Supabase service role key (in Supabase upload) before uploading.", "error");
+    return;
+  }
+
+  els.uploadScheduleBtn.disabled = true;
+  setScheduleStatus("Validating CSV…");
+
+  try {
+    const csvText = await readFileAsText(file);
+    const { rows, errors } = validateRoomScheduleCsv(csvText, selectedSchool);
+
+    if (errors.length) {
+      const shown = errors.slice(0, 8).join(" ");
+      const more = errors.length > 8 ? ` (+${errors.length - 8} more)` : "";
+      setScheduleStatus(`Upload blocked: ${shown}${more}`, "error");
+      return;
+    }
+
+    saveSupabaseKey(supabaseKey);
+    const config = loadSupabaseConfig();
+    config.supabaseKey = supabaseKey;
+
+    setScheduleStatus(`Uploading ${rows.length} room(s) for ${selectedSchool.name}…`);
+
+    await replaceRoomSchedule(
+      config,
+      selectedSchool.campusId,
+      rows.map((row) => ({
+        campusId: selectedSchool.campusId,
+        schoolName: row.school_name,
+        cafmId: row.cafm_id,
+        name: row.name,
+        neighborhood: row.neighborhood,
+        area: row.area,
+        programType: row.program_type,
+        sfDeviation: row.sf_deviation,
+        roomNameUnsure: row.room_name_unsure,
+      })),
+    );
+
+    setScheduleStatus(
+      `Saved ${rows.length} room(s) for ${selectedSchool.name} (campus ${selectedSchool.campusId}) to roomschedule.`,
+      "success",
+    );
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : "Schedule upload failed.";
+    const hint = /relation .* does not exist|Could not find the table/i.test(message)
+      ? " Run supabase/roomschedule.sql in the Supabase SQL editor first."
+      : "";
+    setScheduleStatus(`${message}${hint}`, "error");
+  } finally {
+    els.uploadScheduleBtn.disabled = false;
+  }
+}
+
 async function handleSave() {
   if (!result) return;
 
@@ -365,9 +518,22 @@ async function handleSave() {
 
 els.dxfInput.addEventListener("change", () => {
   const file = els.dxfInput.files?.[0];
-  if (file && !els.fileName.value.trim()) {
-    if (selectedSchool && els.floorSelect.value) syncSuggestedFilename();
-    else els.fileName.value = suggestedFilenameFromDxf(file);
+  if (file) {
+    els.dxfFileStatus.textContent = `${file.name} loaded`;
+    els.dxfFileStatus.dataset.type = "success";
+    // New DXF invalidates any previous convert result.
+    result = null;
+    els.saveBtn.disabled = true;
+    els.downloadBtn.disabled = true;
+    els.downloadCsvBtn.disabled = true;
+    renderInventorySummary(null);
+    if (!els.fileName.value.trim()) {
+      if (selectedSchool && els.floorSelect.value) syncSuggestedFilename();
+      else els.fileName.value = suggestedFilenameFromDxf(file);
+    }
+  } else {
+    els.dxfFileStatus.textContent = "No file loaded yet.";
+    els.dxfFileStatus.dataset.type = "empty";
   }
 });
 
@@ -381,6 +547,8 @@ els.fileName.addEventListener("input", () => {
 els.convertBtn.addEventListener("click", handleConvert);
 els.downloadBtn.addEventListener("click", handleDownload);
 els.downloadCsvBtn.addEventListener("click", handleDownloadCsv);
+els.downloadScheduleTemplateBtn.addEventListener("click", handleDownloadScheduleTemplate);
+els.uploadScheduleBtn.addEventListener("click", handleUploadSchedule);
 els.saveBtn.addEventListener("click", handleSave);
 els.saveConfigBtn.addEventListener("click", () => {
   saveSupabaseKey(els.supabaseKey.value.trim());

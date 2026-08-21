@@ -18,7 +18,7 @@
             <span>Choose DXF</span>
             <input id="dxf-input" type="file" accept=".dxf,text/plain" />
           </label>
-          <button id="convert-btn" type="button" class="primary">Convert</button>
+          <p id="dxf-file-status" class="file-loaded" data-type="empty">No file loaded yet.</p>
         </div>
       </section>
 
@@ -53,15 +53,18 @@
       <section class="panel">
         <h2>3. Output name</h2>
         <p class="hint">
-          Suggested from school + floor (e.g. <code>ALLISON ES L1.svg</code>). You can edit before
-          saving. A mobile copy is saved as <code>…mobile.svg</code>.
+          Suggested from school + floor (e.g. <code>ALLISON ES L1.svg</code>). You can edit it,
+          then convert. A mobile copy is saved as <code>…mobile.svg</code>.
         </p>
-        <input id="file-name" type="text" placeholder="SCHOOL NAME ES L1.svg" />
+        <div class="row">
+          <input id="file-name" type="text" placeholder="SCHOOL NAME ES L1.svg" />
+          <button id="convert-btn" type="button" class="primary">Convert</button>
+        </div>
       </section>
 
       <section class="panel grid-2">
         <div>
-          <h2>Layer summary</h2>
+          <h2>4. Layer summary</h2>
           <div class="table-wrap">
             <table>
               <thead>
@@ -102,6 +105,7 @@
       </section>
 
       <section class="panel">
+        <h2>5. Save floor plans</h2>
         <div class="actions">
           <button id="download-btn" type="button">Download both SVGs</button>
           <button id="download-csv-btn" type="button">Download room CSV</button>
@@ -124,6 +128,30 @@
           <p class="hint">Lean Version</p>
           <div id="preview-mobile" class="preview-frame"></div>
         </div>
+      </section>
+
+      <section class="panel">
+        <h2>6. Room schedule</h2>
+        <p class="hint">
+          After converting the floor plan, download a CSV template with the ESA room-use columns.
+          <code>school_name</code> comes from the selected geojson school (<code>NAME</code>), and
+          <code>CAFM_ID</code> is filled from CAFM labels in the uploaded DXF. Upload the filled
+          file to Supabase table <code>roomschedule</code> (run
+          <code>supabase/roomschedule.sql</code> once first).
+        </p>
+        <div class="actions">
+          <button id="download-schedule-template-btn" type="button">
+            Download schedule template
+          </button>
+          <label class="file-picker">
+            <span>Choose schedule CSV</span>
+            <input id="schedule-csv-input" type="file" accept=".csv,text/csv" />
+          </label>
+          <button id="upload-schedule-btn" type="button" class="primary">
+            Upload schedule to Supabase
+          </button>
+        </div>
+        <p id="schedule-status" class="status" data-type="info"></p>
       </section>
     </div>
     <script type="module" src="/src/main.js"></script>
