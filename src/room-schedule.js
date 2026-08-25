@@ -5,6 +5,7 @@
 
 export const ROOM_SCHEDULE_HEADERS = [
   "school_name",
+  "Building Label",
   "CAFM_ID",
   "Name",
   "Neighborhood",
@@ -16,6 +17,7 @@ export const ROOM_SCHEDULE_HEADERS = [
 
 /** @typedef {{
  *   school_name: string,
+ *   building_label: string,
  *   cafm_id: string,
  *   name: string,
  *   neighborhood: string,
@@ -43,10 +45,10 @@ export function buildRoomScheduleTemplateCsv(schoolName, options = {}) {
   const lines = [header];
 
   for (const cafmId of cafmIds) {
-    lines.push(`${escapeCsvField(name)},${escapeCsvField(cafmId)},,,,,,`);
+    lines.push(`${escapeCsvField(name)},,${escapeCsvField(cafmId)},,,,,,`);
   }
   for (let i = 0; i < blankExtraRows; i += 1) {
-    lines.push(`${escapeCsvField(name)},,,,,,,`);
+    lines.push(`${escapeCsvField(name)},,,,,,,,`);
   }
   return `${lines.join("\r\n")}\r\n`;
 }
@@ -219,6 +221,7 @@ export function validateRoomScheduleCsv(csvText, options = {}) {
     const get = (key) => String(line[idx[key]] ?? "").trim();
 
     const schoolName = get("school_name");
+    const buildingLabel = get("Building Label");
     const cafmId = get("CAFM_ID");
     const name = get("Name");
     const neighborhood = get("Neighborhood");
@@ -229,6 +232,7 @@ export function validateRoomScheduleCsv(csvText, options = {}) {
 
     const allEmpty =
       !schoolName &&
+      !buildingLabel &&
       !cafmId &&
       !name &&
       !neighborhood &&
@@ -278,6 +282,7 @@ export function validateRoomScheduleCsv(csvText, options = {}) {
 
     rows.push({
       school_name: schoolName,
+      building_label: buildingLabel,
       campus_id: matched.campusId,
       cafm_id: cafmId,
       name,
@@ -304,7 +309,7 @@ export function buildBatchRoomScheduleTemplateCsv(blankRows = 15) {
   const header = ROOM_SCHEDULE_HEADERS.join(",");
   const lines = [header];
   for (let i = 0; i < blankRows; i += 1) {
-    lines.push(",,,,,,,");
+    lines.push(",,,,,,,,");
   }
   return `${lines.join("\r\n")}\r\n`;
 }

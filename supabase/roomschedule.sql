@@ -9,6 +9,7 @@ create table if not exists public.roomschedule (
   campus_id text not null,
   school_name text not null,
   cafm_id text not null,
+  building_label text,
   name text,
   neighborhood text,
   area text,

@@ -213,6 +213,7 @@ function mapScheduleRowsToDb(rows) {
     campusId: row.campus_id,
     schoolName: row.school_name,
     cafmId: row.cafm_id,
+    buildingLabel: row.building_label,
     name: row.name,
     neighborhood: row.neighborhood,
     area: row.area,
