@@ -202,7 +202,9 @@
           <p class="hint">
             Upload one CSV with many campuses. Every <code>school_name</code> must match a geojson
             <code>NAME</code> exactly (e.g. <code>LANGFORD</code>). Columns must match the ESA sheet.
-            Each school in the file replaces that campus’s rows in Supabase.
+            Rows are unique by campus + <code>Building Label</code> + <code>CAFM_ID</code> (the same
+            CAFM_ID can appear in different buildings). Each school in the file replaces that
+            campus’s rows in Supabase.
           </p>
           <div class="actions">
             <button id="download-batch-template-btn" type="button">

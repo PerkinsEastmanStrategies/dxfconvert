@@ -209,7 +209,7 @@ export function validateRoomScheduleCsv(csvText, options = {}) {
   /** @type {Array<RoomScheduleRow & { campus_id: string }>} */
   const rows = [];
   /** @type {Set<string>} */
-  const seenSchoolCafm = new Set();
+  const seenCampusBuildingCafm = new Set();
   /** @type {Set<string>} */
   const schoolsSeen = new Set();
   /** @type {Set<string>} */
@@ -270,14 +270,18 @@ export function validateRoomScheduleCsv(csvText, options = {}) {
       continue;
     }
 
-    const cafmKey = `${matched.campusId}::${cafmId.toUpperCase()}`;
-    if (seenSchoolCafm.has(cafmKey)) {
+    const buildingKey = buildingLabel.replace(/\s+/g, " ").toUpperCase();
+    const cafmKey = `${matched.campusId}::${buildingKey}::${cafmId.toUpperCase()}`;
+    if (seenCampusBuildingCafm.has(cafmKey)) {
+      const buildingNote = buildingLabel
+        ? `building "${buildingLabel}"`
+        : "blank Building Label";
       errors.push(
-        `Row ${lineNo}: duplicate CAFM_ID "${cafmId}" for school "${schoolName}".`,
+        `Row ${lineNo}: duplicate CAFM_ID "${cafmId}" for school "${schoolName}" (${buildingNote}). Same CAFM_ID is allowed in a different building on this campus.`,
       );
       continue;
     }
-    seenSchoolCafm.add(cafmKey);
+    seenCampusBuildingCafm.add(cafmKey);
     schoolsSeen.add(schoolName);
 
     rows.push({

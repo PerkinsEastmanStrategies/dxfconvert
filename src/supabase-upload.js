@@ -163,7 +163,7 @@ export async function replaceRoomSchedule(config, campusId, rows) {
     campus_id: campusId,
     school_name: row.schoolName,
     cafm_id: row.cafmId,
-    building_label: row.buildingLabel || null,
+    building_label: (row.buildingLabel || "").trim(),
     name: row.name || null,
     neighborhood: row.neighborhood || null,
     area: row.area || null,

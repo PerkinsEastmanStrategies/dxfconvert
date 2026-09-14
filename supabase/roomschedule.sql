@@ -9,7 +9,7 @@ create table if not exists public.roomschedule (
   campus_id text not null,
   school_name text not null,
   cafm_id text not null,
-  building_label text,
+  building_label text not null default '',
   name text,
   neighborhood text,
   area text,
@@ -17,11 +17,11 @@ create table if not exists public.roomschedule (
   sf_deviation text,
   room_name_unsure text,
   updated_at timestamptz not null default now(),
-  constraint roomschedule_campus_cafm_unique unique (campus_id, cafm_id)
+  constraint roomschedule_campus_building_cafm_unique unique (campus_id, building_label, cafm_id)
 );
 
 comment on table public.roomschedule is
-  'Room schedule / room-use data per campus (CAFM_ID, Name, Neighborhood, Area, Program Type, etc.).';
+  'Room schedule / room-use data per campus. Unique by campus + building_label + CAFM_ID.';
 
 create index if not exists roomschedule_school_name_idx
   on public.roomschedule (school_name);
