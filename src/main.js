@@ -5,6 +5,7 @@ import { FLOOR_LEVELS, getFloorLevel } from "./floor-levels.js";
 import { loadAisdSchools, suggestFilename } from "./schools.js";
 import {
   buildRoomInventory,
+  previewOverlaysFromInventory,
   roomInventoryFilename,
   roomInventoryToCsv,
 } from "./room-inventory.js";
@@ -42,6 +43,7 @@ const els = {
   downloadCsvBtn: document.getElementById("download-csv-btn"),
   status: document.getElementById("status"),
   inventorySummary: document.getElementById("inventory-summary"),
+  inventoryIssues: document.getElementById("inventory-issues"),
   layerTable: document.getElementById("layer-table"),
   previewDesktop: document.getElementById("preview-desktop"),
   previewMobile: document.getElementById("preview-mobile"),
@@ -342,7 +344,7 @@ function renderLayerTable(layers) {
     .join("");
 }
 
-function showPreview(container, svgText, metaEl, label) {
+function showPreview(container, svgText, metaEl, label, inventory) {
   if (!svgText) {
     container.innerHTML = `<p class="placeholder">No preview</p>`;
     metaEl.textContent = "";
@@ -356,8 +358,82 @@ function showPreview(container, svgText, metaEl, label) {
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     svg.setAttribute("width", "100%");
     svg.setAttribute("height", "100%");
+    paintFindabilityOverlay(svg, inventory);
   }
-  metaEl.textContent = `${label} · ${formatBytes(new Blob([svgText]).size)}`;
+  metaEl.textContent = `${label} · ${formatBytes(new Blob([svgText]).size)} · green = ESA can select, orange = not selectable`;
+}
+
+function paintFindabilityOverlay(svg, inventory) {
+  const overlays = previewOverlaysFromInventory(inventory);
+  if (!overlays.length) return;
+
+  const ns = "http://www.w3.org/2000/svg";
+  const flipped = svg.querySelector('g[transform*="matrix(1,0,0,-1"]') || svg;
+
+  const style = document.createElementNS(ns, "style");
+  style.textContent = `
+    #CAFM_ID { opacity: 0.18; }
+    #esa-findability polygon[data-findable="yes"] {
+      fill: #22c55e !important;
+      fill-opacity: 0.38 !important;
+      stroke: #15803d !important;
+      stroke-width: 1.25px !important;
+      vector-effect: non-scaling-stroke;
+    }
+    #esa-findability polygon[data-findable="no"] {
+      fill: #f97316 !important;
+      fill-opacity: 0.42 !important;
+      stroke: #c2410c !important;
+      stroke-width: 1.5px !important;
+      vector-effect: non-scaling-stroke;
+    }
+    #esa-findability text, #esa-findability tspan {
+      fill: #0f172a !important;
+      stroke: none !important;
+      font-weight: 700;
+    }
+  `;
+  svg.insertBefore(style, svg.firstChild);
+
+  const group = document.createElementNS(ns, "g");
+  group.setAttribute("id", "esa-findability");
+  group.setAttribute("pointer-events", "none");
+
+  const vb = svg.viewBox?.baseVal;
+  const fontSize = vb?.width ? Math.max(vb.width * 0.007, 8) : 12;
+
+  for (const overlay of overlays) {
+    const polygon = document.createElementNS(ns, "polygon");
+    polygon.setAttribute("data-findable", overlay.findable ? "yes" : "no");
+    polygon.setAttribute("points", overlay.points.map((p) => `${p.x},${p.y}`).join(" "));
+    polygon.setAttribute("fill-rule", "evenodd");
+    const title = document.createElementNS(ns, "title");
+    const names = overlay.labels.map((item) => item.id).join(", ") || "unlabeled space";
+    const issue = overlay.labels.find((item) => item.issue)?.issue;
+    title.textContent = overlay.findable
+      ? `${names} — ESA can select`
+      : `${names} — ESA cannot select${issue ? `: ${issue}` : ""}`;
+    polygon.appendChild(title);
+    group.appendChild(polygon);
+
+    for (const label of overlay.labels) {
+      if (!Number.isFinite(label.x) || !Number.isFinite(label.y)) continue;
+      const text = document.createElementNS(ns, "text");
+      text.setAttribute("x", String(label.x));
+      text.setAttribute("y", String(label.y));
+      text.setAttribute("font-size", String(fontSize));
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("dominant-baseline", "middle");
+      text.setAttribute(
+        "transform",
+        `translate(${label.x},${label.y}) scale(1,-1) translate(${-label.x},${-label.y})`,
+      );
+      text.textContent = label.id;
+      group.appendChild(text);
+    }
+  }
+
+  flipped.appendChild(group);
 }
 
 async function readFileAsText(file) {
@@ -419,8 +495,8 @@ async function handleConvert() {
 
     renderLayerTable(result.layers);
     renderInventorySummary(result.inventory);
-    showPreview(els.previewDesktop, result.desktop, els.metaDesktop, "Desktop SVG");
-    showPreview(els.previewMobile, result.mobile, els.metaMobile, "Mobile SVG");
+    showPreview(els.previewDesktop, result.desktop, els.metaDesktop, "Desktop SVG", result.inventory);
+    showPreview(els.previewMobile, result.mobile, els.metaMobile, "Mobile SVG", result.inventory);
 
     els.saveBtn.disabled = false;
     els.downloadBtn.disabled = false;
@@ -429,10 +505,21 @@ async function handleConvert() {
     const stripped = desktop.strippedFragments ?? 0;
     const strippedNote =
       stripped > 0 ? ` Stripped ${stripped.toLocaleString()} leftover fragments.` : "";
-    setStatus(
-      `Converted ${desktop.entityCount.toLocaleString()} entities (desktop) / ${mobile.entityCount.toLocaleString()} (mobile) from ${desktop.totalEntities.toLocaleString()} total.${strippedNote}`,
-      "success",
-    );
+    const notFindable = result.inventory?.summary?.notFindable ?? 0;
+    const unclosed = result.inventory?.summary?.unclosedSpaces ?? 0;
+    if (notFindable > 0 || unclosed > 0) {
+      setStatus(
+        `Converted, but ${notFindable} labeled room(s) look unselectable in ESA` +
+          (unclosed ? ` and ${unclosed} space(s) are not closed in CAD` : "") +
+          `. See the list below or download the room CSV.${strippedNote}`,
+        "warn",
+      );
+    } else {
+      setStatus(
+        `Converted ${desktop.entityCount.toLocaleString()} entities (desktop) / ${mobile.entityCount.toLocaleString()} (mobile) from ${desktop.totalEntities.toLocaleString()} total.${strippedNote}`,
+        "success",
+      );
+    }
     updateScheduleSharedContext();
   } catch (err) {
     console.error(err);
@@ -448,16 +535,41 @@ async function handleConvert() {
 }
 
 function renderInventorySummary(inventory) {
-  if (!inventory) {
-    els.inventorySummary.textContent = "";
-    return;
-  }
+  els.inventorySummary.textContent = "";
+  els.inventoryIssues.replaceChildren();
+  els.inventoryIssues.hidden = true;
+  if (!inventory) return;
+
   const { summary } = inventory;
   els.inventorySummary.textContent =
-    `Room inventory: ${summary.labelCount} labels · ${summary.spaceCount} spaces · ` +
-    `${summary.matched} matched · ${summary.nearest} nearest · ` +
+    `Room inventory: ${summary.findable} findable · ${summary.notFindable} not findable · ` +
+    `${summary.labelCount} labels · ${summary.spaceCount} spaces · ` +
+    `${summary.matched} matched · ${summary.bboxOnly} bbox-only · ${summary.nearest} nearest · ` +
     `${summary.unmatchedLabels} unmatched labels · ${summary.duplicateLabels} duplicate labels · ` +
-    `${summary.orphanSpaces} spaces without labels. Download CSV for details.`;
+    `${summary.sharedSpaces} shared spaces · ${summary.unclosedSpaces} unclosed · ` +
+    `${summary.orphanSpaces} spaces without labels. Download CSV for the full list.`;
+
+  const issues = inventory.issues ?? [];
+  if (!issues.length) return;
+
+  const heading = document.createElement("p");
+  heading.textContent = "ESA likely cannot select these rooms until CAD is fixed:";
+  const list = document.createElement("ul");
+  const shown = issues.slice(0, 25);
+  for (const issue of shown) {
+    const item = document.createElement("li");
+    const who = issue.roomId ? `Room ${issue.roomId}` : `Space ${issue.status}`;
+    item.textContent = `${who} — ${issue.detail}`;
+    list.appendChild(item);
+  }
+  if (issues.length > shown.length) {
+    const more = document.createElement("p");
+    more.textContent = `…and ${issues.length - shown.length} more. Download the room CSV.`;
+    els.inventoryIssues.append(heading, list, more);
+  } else {
+    els.inventoryIssues.append(heading, list);
+  }
+  els.inventoryIssues.hidden = false;
 }
 
 function downloadTextFile(filename, text, mimeType) {
@@ -713,6 +825,17 @@ async function handleSave() {
   syncSupabaseKeyInputs(els.supabaseKey);
   const config = loadSupabaseConfig();
   config.supabaseKey = supabaseKey;
+
+  const notFindable = result.inventory?.summary?.notFindable ?? 0;
+  if (notFindable > 0) {
+    const proceed = window.confirm(
+      `${notFindable} labeled room(s) look like they will not be selectable in the ESA app. Save to Supabase anyway?`,
+    );
+    if (!proceed) {
+      setStatus("Save cancelled. Fix the flagged rooms in CAD, or download the room CSV for details.", "warn");
+      return;
+    }
+  }
   els.saveBtn.disabled = true;
   setStatus("Uploading SVGs and saving school/floor metadata…");
 

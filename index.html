@@ -117,10 +117,17 @@
             <button id="save-btn" type="button" class="primary">Save to Supabase</button>
           </div>
           <p id="inventory-summary" class="hint"></p>
+          <div id="inventory-issues" class="inventory-issues" hidden></div>
           <p id="status" class="status" data-type="info"></p>
         </section>
 
         <section class="panel previews">
+          <p class="hint preview-legend">
+            Preview uses the same SVG ESA loads, plus a findability overlay:
+            <strong class="legend-ok">green</strong> rooms ESA can select,
+            <strong class="legend-bad">orange</strong> rooms it cannot.
+            Saved SVGs stay clean (no overlay).
+          </p>
           <div class="preview-card">
             <h3>Desktop SVG</h3>
             <p class="meta" id="meta-desktop"></p>

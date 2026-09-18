@@ -8,6 +8,7 @@
   --accent: #0f4c81;
   --accent-hover: #0b3a63;
   --success: #166534;
+  --warn: #b45309;
   --error: #b91c1c;
   --kept: #ecfdf5;
   --ignored: #fef2f2;
@@ -295,14 +296,55 @@ tr.ignored {
   color: var(--success);
 }
 
+.status[data-type="warn"] {
+  color: var(--warn);
+}
+
 .status[data-type="error"] {
   color: var(--error);
+}
+
+.inventory-issues {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f3d19c;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.inventory-issues p {
+  margin: 0 0 8px;
+}
+
+.inventory-issues ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.inventory-issues li + li {
+  margin-top: 4px;
 }
 
 .previews {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.preview-legend {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.legend-ok {
+  color: #15803d;
+}
+
+.legend-bad {
+  color: #c2410c;
 }
 
 .preview-card {
